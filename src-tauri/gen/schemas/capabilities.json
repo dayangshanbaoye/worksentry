@@ -1,0 +1,1 @@
+{"desktop":{"identifier":"desktop","description":"enables the desktop APIs","local":true,"permissions":["core:default","core:window:default","core:window:allow-show","core:window:allow-hide","core:window:allow-close","core:window:allow-set-focus","core:window:allow-set-always-on-top","core:path:default","shell:default"]}}
