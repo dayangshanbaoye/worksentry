@@ -1,7 +1,31 @@
+# Node
 node_modules
 dist
-target
+.DS_Store
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock.bk
+
+# Installers / Binaries
+*.exe
+*.zip
+*.msi
+WebView2Bootstrapper.exe
+vs_buildtools.exe
+MinGW.zip
+
+# Helper Scripts
+*.bat
+*.ps1
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# WorkSentry Specific
+.worksentry_index/
 *.log
 .env
-.DS_Store
-.worksentry_index
