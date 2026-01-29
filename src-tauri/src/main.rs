@@ -107,7 +107,8 @@ fn main() {
             get_config,
 
             set_hotkey,
-            set_browser_enabled,
+            set_history_enabled,
+            set_bookmarks_enabled,
             get_browser_status,
             open_file
         ])
@@ -116,8 +117,13 @@ fn main() {
 }
 
 #[tauri::command]
-async fn set_browser_enabled(enabled: bool) -> Result<(), String> {
-    config::set_browser_enabled(enabled)
+async fn set_history_enabled(enabled: bool) -> Result<(), String> {
+    config::set_history_enabled(enabled)
+}
+
+#[tauri::command]
+async fn set_bookmarks_enabled(enabled: bool) -> Result<(), String> {
+    config::set_bookmarks_enabled(enabled)
 }
 
 #[tauri::command]

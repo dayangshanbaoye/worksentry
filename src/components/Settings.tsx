@@ -7,7 +7,8 @@ interface Config {
     modifiers: string[];
     key: string;
   };
-  enable_browser_search: boolean;
+  enable_history: boolean;
+  enable_bookmarks: boolean;
 }
 
 
@@ -15,6 +16,9 @@ interface IndexStats {
   document_count: number;
   size_bytes: number;
   index_path: string;
+  file_count?: number;
+  bookmark_count?: number;
+  history_count?: number;
 }
 
 function formatBytes(bytes: number, decimals = 2) {
@@ -30,7 +34,8 @@ function Settings() {
   const [config, setConfig] = useState<Config>({
     indexed_folders: [],
     hotkey: { modifiers: ['Alt'], key: 'Space' },
-    enable_browser_search: false,
+    enable_history: false,
+    enable_bookmarks: false,
   });
   const [stats, setStats] = useState<IndexStats | null>(null);
   const [newFolder, setNewFolder] = useState('');
@@ -53,20 +58,7 @@ function Settings() {
     }
   };
 
-  const handleToggleBrowser = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const enabled = e.target.checked;
-    // Update local state immediately for responsiveness
-    setConfig(prev => ({ ...prev, enable_browser_search: enabled }));
-    try {
-      await invoke('set_browser_enabled', { enabled });
-      // Reload config to confirm
-      await loadConfig();
-    } catch (error) {
-      console.error('Failed to toggle browser search:', error);
-      // Revert on error
-      setConfig(prev => ({ ...prev, enable_browser_search: !enabled }));
-    }
-  };
+
 
   const loadConfig = async () => {
     try {
@@ -178,9 +170,9 @@ function Settings() {
           marginBottom: '16px'
         }}>
           <h4 style={{ marginTop: 0, marginBottom: '12px' }}>Index Statistics</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '16px' }}>
             <div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Documents</div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Total Items</div>
               <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{stats?.document_count || 0}</div>
             </div>
             <div>
@@ -188,6 +180,23 @@ function Settings() {
               <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{formatBytes(stats?.size_bytes || 0)}</div>
             </div>
           </div>
+
+          {/* Breakdown */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+            <div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>Files</div>
+              <div style={{ fontWeight: 'bold' }}>{stats?.file_count ?? '-'}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>History</div>
+              <div style={{ fontWeight: 'bold' }}>{stats?.history_count ?? '-'}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>Bookmarks</div>
+              <div style={{ fontWeight: 'bold' }}>{stats?.bookmark_count ?? '-'}</div>
+            </div>
+          </div>
+
           {stats?.index_path && (
             <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
               Location: {stats.index_path}
@@ -235,32 +244,76 @@ function Settings() {
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontWeight: 'bold' }}>Index Browsing History & Bookmarks</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Includes bookmarks and history from detected browsers in search results.
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+              {/* Bookmarks Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>Index Bookmarks</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    Include bookmarks from detected browsers.
+                  </div>
                 </div>
-              </div>
-              <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '24px' }}>
-                <input
-                  type="checkbox"
-                  checked={config.enable_browser_search}
-                  onChange={handleToggleBrowser}
-                  style={{ opacity: 0, width: 0, height: 0 }}
-                />
-                <span style={{
-                  position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: config.enable_browser_search ? 'var(--accent)' : '#ccc',
-                  transition: '.4s', borderRadius: '34px'
-                }}>
+                <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '24px' }}>
+                  <input
+                    type="checkbox"
+                    checked={config.enable_bookmarks}
+                    onChange={async (e) => {
+                      const enabled = e.target.checked;
+                      setConfig(prev => ({ ...prev, enable_bookmarks: enabled }));
+                      try { await invoke('set_bookmarks_enabled', { enabled }); await loadConfig(); }
+                      catch (err) { console.error(err); setConfig(prev => ({ ...prev, enable_bookmarks: !enabled })); }
+                    }}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
                   <span style={{
-                    position: 'absolute', content: "", height: '16px', width: '16px', left: '4px', bottom: '4px',
-                    backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
-                    transform: config.enable_browser_search ? 'translateX(16px)' : 'translateX(0)'
-                  }}></span>
-                </span>
-              </label>
+                    position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: config.enable_bookmarks ? 'var(--accent)' : '#ccc',
+                    transition: '.4s', borderRadius: '34px'
+                  }}>
+                    <span style={{
+                      position: 'absolute', content: "", height: '16px', width: '16px', left: '4px', bottom: '4px',
+                      backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
+                      transform: config.enable_bookmarks ? 'translateX(16px)' : 'translateX(0)'
+                    }}></span>
+                  </span>
+                </label>
+              </div>
+
+              {/* History Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>Index Browsing History</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    Include full browsing history (may be large).
+                  </div>
+                </div>
+                <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '24px' }}>
+                  <input
+                    type="checkbox"
+                    checked={config.enable_history}
+                    onChange={async (e) => {
+                      const enabled = e.target.checked;
+                      setConfig(prev => ({ ...prev, enable_history: enabled }));
+                      try { await invoke('set_history_enabled', { enabled }); await loadConfig(); }
+                      catch (err) { console.error(err); setConfig(prev => ({ ...prev, enable_history: !enabled })); }
+                    }}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: config.enable_history ? 'var(--accent)' : '#ccc',
+                    transition: '.4s', borderRadius: '34px'
+                  }}>
+                    <span style={{
+                      position: 'absolute', content: "", height: '16px', width: '16px', left: '4px', bottom: '4px',
+                      backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
+                      transform: config.enable_history ? 'translateX(16px)' : 'translateX(0)'
+                    }}></span>
+                  </span>
+                </label>
+              </div>
+
             </div>
           </div>
         )}

@@ -16,13 +16,13 @@ pub struct SearchResult {
 pub struct Config {
     pub indexed_folders: Vec<String>,
     pub hotkey: HotkeyConfig,
-    #[serde(default = "default_browser_search")]
-    pub enable_browser_search: bool,
+    #[serde(default)]
+    pub enable_history: bool,
+    #[serde(default)]
+    pub enable_bookmarks: bool,
 }
 
-fn default_browser_search() -> bool {
-    false // Default off as per user request (User Choice)
-}
+
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct HotkeyConfig {
@@ -38,7 +38,8 @@ impl Default for Config {
                 modifiers: vec!["Alt".to_string()],
                 key: "Space".to_string(),
             },
-            enable_browser_search: false,
+            enable_history: false,
+            enable_bookmarks: false,
         }
     }
 }

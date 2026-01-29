@@ -787,10 +787,35 @@ impl TantivyEngine {
         let doc_count = self.get_document_count()?;
         let size_bytes = self.calculate_index_size();
         
+        // Calculate breakdown by type
+        let index = self.get_index()?;
+        let searcher = index.reader()?.searcher();
+        
+        let count_by_type = |type_str: &str| -> u64 {
+            let term = Term::from_field_text(self.record_type_field, type_str);
+            let term_query = TermQuery::new(term, IndexRecordOption::Basic);
+            searcher.search(&term_query, &tantivy::collector::Count).unwrap_or(0) as u64
+        };
+
+        // Note: For "file", we might need to handle backward compatibility where record_type is missing
+        // But for now, let's just count explicit "bookmark" and "history"
+        let bookmark_count = count_by_type("bookmark");
+        let history_count = count_by_type("history");
+        
+        // Files are total - browser items
+        let file_count = if doc_count >= (bookmark_count + history_count) {
+            doc_count - bookmark_count - history_count
+        } else {
+            0
+        };
+
         Ok(IndexStats {
             document_count: doc_count,
             size_bytes,
             index_path: self.index_path.to_string_lossy().to_string(),
+            file_count: Some(file_count),
+            bookmark_count: Some(bookmark_count),
+            history_count: Some(history_count),
         })
     }
 
@@ -816,6 +841,9 @@ pub struct IndexStats {
     pub document_count: u64,
     pub size_bytes: u64,
     pub index_path: String,
+    pub file_count: Option<u64>,
+    pub bookmark_count: Option<u64>,
+    pub history_count: Option<u64>,
 }
 
 // ============================================================================

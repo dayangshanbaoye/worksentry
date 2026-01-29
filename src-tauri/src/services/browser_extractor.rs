@@ -35,26 +35,41 @@ pub fn get_installed_browsers() -> Vec<String> {
     browsers
 }
 
-pub fn extract_all_browser_data() -> Vec<BrowserData> {
+// Update signature to accept flags
+pub fn extract_all_browser_data(enable_history: bool, enable_bookmarks: bool) -> Vec<BrowserData> {
     let mut data = Vec::new();
     let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
     let base_path = Path::new(&local_app_data);
 
+    // Chrome
     if base_path.join(r"Google\Chrome\User Data").exists() {
-        if let Ok(mut history) = extract_history(&base_path.join(CHROME_HISTORY_PATH), "Google Chrome") {
-            data.append(&mut history);
+        if enable_history {
+            match extract_history(&base_path.join(CHROME_HISTORY_PATH), "Google Chrome") {
+                Ok(mut history) => data.append(&mut history),
+                Err(e) => eprintln!("Error extracting Chrome history: {}", e),
+            }
         }
-        if let Ok(mut bookmarks) = extract_bookmarks(&base_path.join(CHROME_BOOKMARKS_PATH), "Google Chrome") {
-            data.append(&mut bookmarks);
+        if enable_bookmarks {
+             match extract_bookmarks(&base_path.join(CHROME_BOOKMARKS_PATH), "Google Chrome") {
+                Ok(mut bookmarks) => data.append(&mut bookmarks),
+                Err(e) => eprintln!("Error extracting Chrome bookmarks: {}", e),
+            }
         }
     }
 
+    // Edge
     if base_path.join(r"Microsoft\Edge\User Data").exists() {
-        if let Ok(mut history) = extract_history(&base_path.join(EDGE_HISTORY_PATH), "Microsoft Edge") {
-            data.append(&mut history);
+        if enable_history {
+             match extract_history(&base_path.join(EDGE_HISTORY_PATH), "Microsoft Edge") {
+                Ok(mut history) => data.append(&mut history),
+                Err(e) => eprintln!("Error extracting Edge history: {}", e),
+            }
         }
-        if let Ok(mut bookmarks) = extract_bookmarks(&base_path.join(EDGE_BOOKMARKS_PATH), "Microsoft Edge") {
-            data.append(&mut bookmarks);
+        if enable_bookmarks {
+             match extract_bookmarks(&base_path.join(EDGE_BOOKMARKS_PATH), "Microsoft Edge") {
+                Ok(mut bookmarks) => data.append(&mut bookmarks),
+                Err(e) => eprintln!("Error extracting Edge bookmarks: {}", e),
+            }
         }
     }
 

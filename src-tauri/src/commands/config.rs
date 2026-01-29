@@ -1,4 +1,4 @@
-use crate::commands::{Config, HotkeyConfig, default_browser_search};
+use crate::commands::{Config, HotkeyConfig};
 use crate::services::browser_extractor;
 use std::fs;
 use std::sync::Mutex;
@@ -38,9 +38,16 @@ pub fn set_hotkey(modifiers: Vec<String>, key: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn set_browser_enabled(enabled: bool) -> Result<(), String> {
+pub fn set_history_enabled(enabled: bool) -> Result<(), String> {
     let mut config = CONFIG.lock().map_err(|e| e.to_string())?;
-    config.enable_browser_search = enabled;
+    config.enable_history = enabled;
+    save_config(&config)?;
+    Ok(())
+}
+
+pub fn set_bookmarks_enabled(enabled: bool) -> Result<(), String> {
+    let mut config = CONFIG.lock().map_err(|e| e.to_string())?;
+    config.enable_bookmarks = enabled;
     save_config(&config)?;
     Ok(())
 }
