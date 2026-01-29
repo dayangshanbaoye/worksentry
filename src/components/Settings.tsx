@@ -7,6 +7,7 @@ interface Config {
     modifiers: string[];
     key: string;
   };
+  enable_browser_search: boolean;
 }
 
 
@@ -29,15 +30,43 @@ function Settings() {
   const [config, setConfig] = useState<Config>({
     indexed_folders: [],
     hotkey: { modifiers: ['Alt'], key: 'Space' },
+    enable_browser_search: false,
   });
   const [stats, setStats] = useState<IndexStats | null>(null);
   const [newFolder, setNewFolder] = useState('');
   const [isReindexing, setIsReindexing] = useState(false);
 
+  const [browserStatus, setBrowserStatus] = useState<{ installed_browsers: string[] } | null>(null);
+
   useEffect(() => {
     loadConfig();
     loadStats();
+    loadBrowserStatus();
   }, []);
+
+  const loadBrowserStatus = async () => {
+    try {
+      const status = await invoke<{ installed_browsers: string[] }>('get_browser_status');
+      setBrowserStatus(status);
+    } catch (error) {
+      console.error('Failed to load browser status:', error);
+    }
+  };
+
+  const handleToggleBrowser = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const enabled = e.target.checked;
+    // Update local state immediately for responsiveness
+    setConfig(prev => ({ ...prev, enable_browser_search: enabled }));
+    try {
+      await invoke('set_browser_enabled', { enabled });
+      // Reload config to confirm
+      await loadConfig();
+    } catch (error) {
+      console.error('Failed to toggle browser search:', error);
+      // Revert on error
+      setConfig(prev => ({ ...prev, enable_browser_search: !enabled }));
+    }
+  };
 
   const loadConfig = async () => {
     try {
@@ -142,9 +171,9 @@ function Settings() {
       </div>
 
       <div style={{ marginTop: '24px' }}>
-        <div className="stats-container" style={{ 
-          background: 'var(--bg-secondary)', 
-          padding: '16px', 
+        <div className="stats-container" style={{
+          background: 'var(--bg-secondary)',
+          padding: '16px',
           borderRadius: '8px',
           marginBottom: '16px'
         }}>
@@ -173,6 +202,68 @@ function Settings() {
         >
           {isReindexing ? 'Reindexing...' : 'Reindex All Files'}
         </button>
+      </div>
+
+      <div style={{ marginTop: '24px' }}>
+        <h3 style={{ marginBottom: '12px' }}>Browser Integration</h3>
+
+        {browserStatus && (
+          <div style={{
+            background: 'var(--bg-secondary)',
+            padding: '16px',
+            borderRadius: '8px',
+            marginBottom: '16px'
+          }}>
+            <div style={{ marginBottom: '12px', fontSize: '14px' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Detected Browsers:</div>
+              {browserStatus.installed_browsers.length > 0 ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {browserStatus.installed_browsers.map(b => (
+                    <span key={b} style={{
+                      background: 'var(--accent)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px'
+                    }}>
+                      {b}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ color: 'var(--text-secondary)' }}>None detected</span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 'bold' }}>Index Browsing History & Bookmarks</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Includes bookmarks and history from detected browsers in search results.
+                </div>
+              </div>
+              <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '24px' }}>
+                <input
+                  type="checkbox"
+                  checked={config.enable_browser_search}
+                  onChange={handleToggleBrowser}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+                <span style={{
+                  position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: config.enable_browser_search ? 'var(--accent)' : '#ccc',
+                  transition: '.4s', borderRadius: '34px'
+                }}>
+                  <span style={{
+                    position: 'absolute', content: "", height: '16px', width: '16px', left: '4px', bottom: '4px',
+                    backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
+                    transform: config.enable_browser_search ? 'translateX(16px)' : 'translateX(0)'
+                  }}></span>
+                </span>
+              </label>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="hotkey-config" style={{ marginTop: '24px' }}>

@@ -107,8 +107,20 @@ fn main() {
             get_config,
 
             set_hotkey,
+            set_browser_enabled,
+            get_browser_status,
             open_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+async fn set_browser_enabled(enabled: bool) -> Result<(), String> {
+    config::set_browser_enabled(enabled)
+}
+
+#[tauri::command]
+fn get_browser_status() -> Result<services::browser_extractor::BrowserStatus, String> {
+    config::get_browser_status()
 }

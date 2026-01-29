@@ -49,9 +49,18 @@ pub fn get_indexed_folders() -> Result<Vec<String>, String> {
 pub fn rebuild_index() -> Result<(), String> {
     let config = crate::commands::config::CONFIG.lock().map_err(|e| e.to_string())?;
     let folders = config.indexed_folders.clone();
+    let example_browser_enabled = config.enable_browser_search;
     drop(config);
 
     tantivy_engine::rebuild_index(&folders).map_err(|e| e.to_string())?;
+
+    if example_browser_enabled {
+        let browser_data = crate::services::browser_extractor::extract_all_browser_data();
+        if !browser_data.is_empty() {
+             tantivy_engine::index_browser_data(browser_data).map_err(|e| e.to_string())?;
+        }
+    }
+
     Ok(())
 }
 

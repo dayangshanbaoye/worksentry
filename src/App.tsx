@@ -8,6 +8,7 @@ interface SearchResult {
   path: string;
   file_name: string;
   score: number;
+  record_type?: string;
 }
 
 type TabType = 'search' | 'settings';
@@ -63,11 +64,32 @@ function App() {
     }
   }, [results, selectedIndex, activeTab]);
 
-  const openFile = async (path: string) => {
+  const handleResultSelect = async (result: SearchResult) => {
     try {
-      await invoke('open_file', { path });
+      if (result.record_type === 'history' || result.record_type === 'bookmark') {
+        // Use the shell plugin to open URLs
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(result.path);
+      } else {
+        await invoke('open_file', { path: result.path });
+      }
     } catch (error) {
-      console.error('Failed to open file:', error);
+      console.error('Failed to open item:', error);
+    }
+  };
+
+  const openFile = async (path: string) => {
+    // Legacy call wrapper - try to find result object or just generic open
+    const result = results.find(r => r.path === path);
+    if (result) {
+      handleResultSelect(result);
+    } else {
+      // Fallback
+      try {
+        await invoke('open_file', { path });
+      } catch (error) {
+        console.error('Failed to open file:', error);
+      }
     }
   };
 
@@ -100,7 +122,7 @@ function App() {
               results={results}
               selectedIndex={selectedIndex}
               isLoading={isLoading}
-              onSelect={(result) => openFile(result.path)}
+              onSelect={handleResultSelect}
             />
           </>
         )}

@@ -23,6 +23,8 @@ pub struct TantivyEngine {
     extension_field: Field,
     size_field: Field,
     modified_time_field: Field,
+    url_field: Field,
+    record_type_field: Field,
     index_path: std::path::PathBuf,
 }
 
@@ -52,8 +54,15 @@ impl TantivyEngine {
         // File size in bytes
         let size_field = schema_builder.add_u64_field("size", NumericOptions::default() | STORED);
         // Modified time as unix timestamp (for incremental indexing)
+        // Modified time as unix timestamp (for incremental indexing)
         let modified_time_field = schema_builder.add_i64_field("modified_time", NumericOptions::default() | STORED);
         
+        // New fields for Browser Integration
+        // URL for bookmarks/history items
+        let url_field = schema_builder.add_text_field("url", STRING | STORED);
+        // Record type: "file", "bookmark", "history"
+        let record_type_field = schema_builder.add_text_field("record_type", STRING | STORED);
+
         let schema = schema_builder.build();
 
         Ok(Self {
@@ -64,6 +73,8 @@ impl TantivyEngine {
             extension_field,
             size_field,
             modified_time_field,
+            url_field,
+            record_type_field,
             index_path,
         })
     }
@@ -310,6 +321,35 @@ impl TantivyEngine {
         fs::read_to_string(path)
     }
 
+    /// Indexes browser history and bookmarks
+    pub fn index_browser_data(&self, data: Vec<crate::services::browser_extractor::BrowserData>) -> tantivy::Result<()> {
+        let index = self.get_index()?;
+        let mut writer = index.writer(50_000_000)?; 
+
+        for item in data {
+            // Use URL as unique ID for deduplication
+            let term = Term::from_field_text(self.path_field, &item.url);
+            writer.delete_term(term);
+
+            let mut doc = TantivyDocument::new();
+            
+            doc.add_text(self.path_field, &item.url);
+            doc.add_text(self.file_name_field, &item.title);
+            doc.add_text(self.content_field, &item.url); 
+            doc.add_text(self.extension_field, &item.source);
+            doc.add_text(self.record_type_field, &item.data_type);
+            doc.add_text(self.url_field, &item.url);
+            
+            doc.add_u64(self.size_field, 0); 
+            doc.add_i64(self.modified_time_field, 0);
+
+            writer.add_document(doc)?;
+        }
+
+        writer.commit()?;
+        Ok(())
+    }
+
     /// Searches the index for matching documents
     pub fn search(&self, query: &str, limit: usize) -> tantivy::Result<Vec<SearchResult>> {
         if query.trim().is_empty() {
@@ -335,6 +375,7 @@ impl TantivyEngine {
             let doc: TantivyDocument = searcher.doc(doc_address)?;
             let mut path_result = String::new();
             let mut file_name = String::new();
+            let mut record_type = "file".to_string();
 
             for field_value in doc.field_values() {
                 let field: Field = field_value.field();
@@ -343,6 +384,8 @@ impl TantivyEngine {
                         path_result = text.to_string();
                     } else if field == self.file_name_field {
                         file_name = text.to_string();
+                    } else if field == self.record_type_field {
+                        record_type = text.to_string();
                     }
                 }
             }
@@ -351,6 +394,7 @@ impl TantivyEngine {
                 path: path_result,
                 file_name,
                 score,
+                record_type,
             });
         }
 
@@ -425,6 +469,7 @@ impl TantivyEngine {
             let doc: TantivyDocument = searcher.doc(doc_address)?;
             let mut path_result = String::new();
             let mut file_name = String::new();
+            let mut record_type = "file".to_string();
 
             for field_value in doc.field_values() {
                 let field: Field = field_value.field();
@@ -433,6 +478,8 @@ impl TantivyEngine {
                         path_result = text.to_string();
                     } else if field == self.file_name_field {
                         file_name = text.to_string();
+                    } else if field == self.record_type_field {
+                        record_type = text.to_string();
                     }
                 }
             }
@@ -441,9 +488,10 @@ impl TantivyEngine {
                 path: path_result,
                 file_name,
                 score,
+                record_type,
             });
         }
-
+        
         Ok(results)
     }
 
@@ -474,6 +522,7 @@ impl TantivyEngine {
                 if let Ok(doc) = store_reader.get::<TantivyDocument>(doc_id) {
                     let mut path_result = String::new();
                     let mut file_name = String::new();
+                    let mut record_type = "file".to_string();
 
                     for field_value in doc.field_values() {
                         if field_value.field() == self.path_field {
@@ -483,6 +532,10 @@ impl TantivyEngine {
                         } else if field_value.field() == self.file_name_field {
                             if let Some(text) = field_value.value().as_str() {
                                 file_name = text.to_string();
+                            }
+                        } else if field_value.field() == self.record_type_field {
+                             if let Some(text) = field_value.value().as_str() {
+                                record_type = text.to_string();
                             }
                         }
                     }
@@ -499,6 +552,7 @@ impl TantivyEngine {
                             path: path_result,
                             file_name,
                             score,
+                            record_type,
                         });
                     }
                 }
@@ -1113,6 +1167,12 @@ pub fn init() -> tantivy::Result<()> {
 pub fn index_folder(folder: &str) -> tantivy::Result<()> {
     let engine = APP_ENGINE.lock().map_err(|e| tantivy::TantivyError::InternalError(e.to_string()))?;
     engine.index_folder(folder)?;
+    Ok(())
+}
+
+pub fn index_browser_data(data: Vec<crate::services::browser_extractor::BrowserData>) -> tantivy::Result<()> {
+    let engine = APP_ENGINE.lock().map_err(|e| tantivy::TantivyError::InternalError(e.to_string()))?;
+    engine.index_browser_data(data)?;
     Ok(())
 }
 

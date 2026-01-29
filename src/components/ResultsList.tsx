@@ -2,6 +2,7 @@ interface SearchResult {
   path: string;
   file_name: string;
   score: number;
+  record_type?: string; // "file", "history", "bookmark"
 }
 
 interface ResultsListProps {
@@ -30,16 +31,35 @@ function ResultsList({ results, selectedIndex, isLoading, onSelect }: ResultsLis
 
   return (
     <div className="results-list">
-      {results.map((result, index) => (
-        <div
-          key={result.path}
-          className={`result-item ${index === selectedIndex ? 'selected' : ''}`}
-          onClick={() => onSelect(result)}
-        >
-          <div className="result-name">{result.file_name}</div>
-          <div className="result-path">{result.path}</div>
-        </div>
-      ))}
+      {results.map((result, index) => {
+        const isUrl = result.record_type === 'history' || result.record_type === 'bookmark';
+        return (
+          <div
+            key={result.path}
+            className={`result-item ${index === selectedIndex ? 'selected' : ''}`}
+            onClick={() => onSelect(result)}
+          >
+            <div className="result-name">
+              {result.file_name}
+              {isUrl && (
+                <span style={{
+                  fontSize: '10px',
+                  marginLeft: '8px',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  backgroundColor: result.record_type === 'bookmark' ? '#FFD700' : '#87CEEB',
+                  color: '#333'
+                }}>
+                  {result.record_type === 'bookmark' ? 'BOOKMARK' : 'HISTORY'}
+                </span>
+              )}
+            </div>
+            <div className="result-path" style={{ color: isUrl ? '#4a9eff' : 'inherit' }}>
+              {result.path}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

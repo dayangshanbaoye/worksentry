@@ -1,4 +1,5 @@
-use crate::commands::{Config, HotkeyConfig};
+use crate::commands::{Config, HotkeyConfig, default_browser_search};
+use crate::services::browser_extractor;
 use std::fs;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
@@ -35,6 +36,20 @@ pub fn set_hotkey(modifiers: Vec<String>, key: String) -> Result<(), String> {
     config.hotkey = HotkeyConfig { modifiers, key };
     save_config(&config)?;
     Ok(())
+}
+
+pub fn set_browser_enabled(enabled: bool) -> Result<(), String> {
+    let mut config = CONFIG.lock().map_err(|e| e.to_string())?;
+    config.enable_browser_search = enabled;
+    save_config(&config)?;
+    Ok(())
+}
+
+pub fn get_browser_status() -> Result<crate::services::browser_extractor::BrowserStatus, String> {
+    let installed = browser_extractor::get_installed_browsers();
+    Ok(crate::services::browser_extractor::BrowserStatus {
+        installed_browsers: installed,
+    })
 }
 
 pub fn save_config(config: &Config) -> Result<(), String> {
