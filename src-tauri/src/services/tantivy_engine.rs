@@ -183,6 +183,7 @@ impl TantivyEngine {
         doc.add_text(self.extension_field, &extension);
         doc.add_u64(self.size_field, size);
         doc.add_i64(self.modified_time_field, modified_time);
+        doc.add_text(self.record_type_field, "file");
         
         writer.add_document(doc)?;
         Ok(true)
@@ -797,17 +798,12 @@ impl TantivyEngine {
             searcher.search(&term_query, &tantivy::collector::Count).unwrap_or(0) as u64
         };
 
-        // Note: For "file", we might need to handle backward compatibility where record_type is missing
-        // But for now, let's just count explicit "bookmark" and "history"
-        let bookmark_count = count_by_type("bookmark");
-        let history_count = count_by_type("history");
+        // Match the exact case used in browser_extractor: "Bookmark" and "History" (capitalized)
+        let bookmark_count = count_by_type("Bookmark");
+        let history_count = count_by_type("History");
         
-        // Files are total - browser items
-        let file_count = if doc_count >= (bookmark_count + history_count) {
-            doc_count - bookmark_count - history_count
-        } else {
-            0
-        };
+        // Count files explicitly (for backward compatibility and accuracy)
+        let file_count = count_by_type("file");
 
         Ok(IndexStats {
             document_count: doc_count,
