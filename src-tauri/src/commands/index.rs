@@ -72,3 +72,7 @@ pub fn get_document_count() -> Result<u64, String> {
 pub fn get_index_stats() -> Result<tantivy_engine::IndexStats, String> {
     tantivy_engine::get_index_stats().map_err(|e| e.to_string())
 }
+
+pub fn get_supported_extensions() -> tantivy_engine::SupportedExtensions {
+    tantivy_engine::get_supported_extensions()
+}

@@ -43,6 +43,11 @@ fn get_index_stats() -> Result<services::tantivy_engine::IndexStats, String> {
     index::get_index_stats()
 }
 
+#[tauri::command]
+fn get_supported_extensions() -> services::tantivy_engine::SupportedExtensions {
+    index::get_supported_extensions()
+}
+
 
 #[tauri::command]
 fn get_config() -> Result<commands::Config, String> {
@@ -110,6 +115,7 @@ fn main() {
             set_history_enabled,
             set_bookmarks_enabled,
             get_browser_status,
+            get_supported_extensions,
             open_file
         ])
         .run(tauri::generate_context!())

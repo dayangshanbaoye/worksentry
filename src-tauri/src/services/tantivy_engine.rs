@@ -281,35 +281,12 @@ impl TantivyEngine {
 
     /// Text files where we can read and index the content
     fn is_text_indexable(&self, ext: &str) -> bool {
-        matches!(
-            ext.to_lowercase().as_str(),
-            "txt" | "md" | "json" | "rs" | "py" | "js" | "ts" | "tsx" | "jsx" |
-            "html" | "css" | "xml" | "yaml" | "yml" | "toml" | "ini" | "conf" |
-            "log" | "csv" | "sh" | "bat" | "ps1" | "c" | "cpp" | "h" | "hpp" |
-            "java" | "go" | "rb" | "php" | "vue" | "svelte" | "sql" | "r" |
-            "scala" | "kt" | "swift" | "dart" | "lua" | "pl" | "pm"
-        )
+        SUPPORTED_TEXT_EXTS.contains(&ext.to_lowercase().as_str())
     }
 
     /// Binary files where we only index the filename, not content
     fn is_filename_only_indexable(&self, ext: &str) -> bool {
-        matches!(
-            ext.to_lowercase().as_str(),
-            // Documents
-            "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" |
-            // Ebooks
-            "epub" | "mobi" | "azw" | "azw3" | "fb2" | "djvu" |
-            // Images
-            "jpg" | "jpeg" | "png" | "gif" | "bmp" | "svg" | "webp" | "ico" | "tiff" |
-            // Audio/Video
-            "mp3" | "wav" | "flac" | "ogg" | "mp4" | "mkv" | "avi" | "mov" | "wmv" |
-            // Archives
-            "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" |
-            // Executables/Installers
-            "exe" | "msi" | "dmg" | "app" | "apk" |
-            // Other
-            "iso" | "torrent"
-        )
+        SUPPORTED_BINARY_EXTS.contains(&ext.to_lowercase().as_str())
     }
 
     /// Reads file content, skipping files that are too large (>1MB)
@@ -842,6 +819,38 @@ pub struct IndexStats {
     pub history_count: Option<u64>,
 }
 
+/// Lists of supported file extensions by category
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct SupportedExtensions {
+    pub text: Vec<String>,
+    pub binary: Vec<String>,
+}
+
+pub const SUPPORTED_TEXT_EXTS: &[&str] = &[
+    "txt", "md", "json", "rs", "py", "js", "ts", "tsx", "jsx",
+    "html", "css", "xml", "yaml", "yml", "toml", "ini", "conf",
+    "log", "csv", "sh", "bat", "ps1", "c", "cpp", "h", "hpp",
+    "java", "go", "rb", "php", "vue", "svelte", "sql", "r",
+    "scala", "kt", "swift", "dart", "lua", "pl", "pm"
+];
+
+pub const SUPPORTED_BINARY_EXTS: &[&str] = &[
+    // Documents
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
+    // Ebooks
+    "epub", "mobi", "azw", "azw3", "fb2", "djvu",
+    // Images
+    "jpg", "jpeg", "png", "gif", "bmp", "svg", "webp", "ico", "tiff",
+    // Audio/Video
+    "mp3", "wav", "flac", "ogg", "mp4", "mkv", "avi", "mov", "wmv",
+    // Archives
+    "zip", "rar", "7z", "tar", "gz", "bz2",
+    // Executables/Installers
+    "exe", "msi", "dmg", "app", "apk",
+    // Other
+    "iso", "torrent"
+];
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -1282,4 +1291,11 @@ pub fn index_single_file(path: &str) -> tantivy::Result<bool> {
 pub fn search_files_launcher(query: &str, limit: usize) -> tantivy::Result<Vec<SearchResult>> {
     let engine = APP_ENGINE.lock().map_err(|e| tantivy::TantivyError::InternalError(e.to_string()))?;
     engine.search_launcher(query, limit)
+}
+
+pub fn get_supported_extensions() -> SupportedExtensions {
+    SupportedExtensions {
+        text: SUPPORTED_TEXT_EXTS.iter().map(|s| s.to_string()).collect(),
+        binary: SUPPORTED_BINARY_EXTS.iter().map(|s| s.to_string()).collect(),
+    }
 }

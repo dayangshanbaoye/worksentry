@@ -11,6 +11,11 @@ interface Config {
   enable_bookmarks: boolean;
 }
 
+interface SupportedExtensions {
+  text: string[];
+  binary: string[];
+}
+
 
 interface IndexStats {
   document_count: number;
@@ -40,6 +45,7 @@ function Settings() {
   const [stats, setStats] = useState<IndexStats | null>(null);
   const [newFolder, setNewFolder] = useState('');
   const [isReindexing, setIsReindexing] = useState(false);
+  const [supportedExtensions, setSupportedExtensions] = useState<SupportedExtensions | null>(null);
 
   const [browserStatus, setBrowserStatus] = useState<{ installed_browsers: string[] } | null>(null);
 
@@ -47,7 +53,17 @@ function Settings() {
     loadConfig();
     loadStats();
     loadBrowserStatus();
+    loadSupportedExtensions();
   }, []);
+
+  const loadSupportedExtensions = async () => {
+    try {
+      const exts = await invoke<SupportedExtensions>('get_supported_extensions');
+      setSupportedExtensions(exts);
+    } catch (error) {
+      console.error('Failed to load supported extensions:', error);
+    }
+  };
 
   const loadBrowserStatus = async () => {
     try {
@@ -318,6 +334,82 @@ function Settings() {
           </div>
         )}
       </div>
+
+      <div style={{ marginTop: '24px' }}>
+        <h3 style={{ marginBottom: '12px' }}>Supported File Types</h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
+          WorkSentry categorizes files into two indexing modes to optimize search speed and quality.
+        </p>
+
+        {supportedExtensions ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Full Content Indexing */}
+            <div style={{
+              background: 'var(--bg-secondary)',
+              padding: '16px',
+              borderRadius: '8px',
+              borderLeft: '4px solid var(--accent)'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                Full Content Indexing
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                The search engine reads the actual text inside these files (up to 1MB).
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {supportedExtensions.text.map(ext => (
+                  <span key={ext} style={{
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(var(--accent-rgb, 0, 102, 255), 0.1)',
+                    color: 'var(--accent)',
+                    border: '1px solid rgba(var(--accent-rgb, 0, 102, 255), 0.2)',
+                    textTransform: 'uppercase',
+                    fontWeight: 'bold'
+                  }}>
+                    {ext}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Filename Only Indexing */}
+            <div style={{
+              background: 'var(--bg-secondary)',
+              padding: '16px',
+              borderRadius: '8px',
+              borderLeft: '4px solid #6c757d'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                Filename & Metadata Only
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                Only the filename and system metadata are indexed for these binary formats.
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {supportedExtensions.binary.map(ext => (
+                  <span key={ext} style={{
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(108, 117, 125, 0.1)',
+                    color: '#6c757d',
+                    border: '1px solid rgba(108, 117, 125, 0.2)',
+                    textTransform: 'uppercase',
+                    fontWeight: 'bold'
+                  }}>
+                    {ext}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ color: 'var(--text-secondary)' }}>Loading supported types...</div>
+        )}
+      </div>
+
 
       <div className="hotkey-config" style={{ marginTop: '24px' }}>
         <h3>Hotkey</h3>
