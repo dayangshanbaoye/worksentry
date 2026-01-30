@@ -304,8 +304,14 @@ impl TantivyEngine {
         let index = self.get_index()?;
         let mut writer = index.writer(50_000_000)?; 
 
-        for item in data {
-            // Use URL as unique ID for deduplication
+        // Deduplicate input data by URL
+        let mut seen_urls = std::collections::HashSet::new();
+        let unique_data: Vec<_> = data.into_iter()
+            .filter(|item| seen_urls.insert(item.url.clone()))
+            .collect();
+
+        for item in unique_data {
+            // Use URL as unique ID for deduplication (removes old entry if exists)
             let term = Term::from_field_text(self.path_field, &item.url);
             writer.delete_term(term);
 
@@ -479,21 +485,38 @@ impl TantivyEngine {
     /// - Characters in query should appear in order in filename
     /// - Spaces in query act as separators (each part must match)
     /// - Case-insensitive
+    /// 
+    /// Supports search operators:
+    /// - `ext:pdf,docx` - filter by specific file extensions
+    /// - `type:doc` - filter by type category (doc, app, image, video, audio, code, archive)
+    /// - `in:files` or `in:bookmarks` or `in:history` - filter by record type
     pub fn search_launcher(&self, query: &str, limit: usize) -> tantivy::Result<Vec<SearchResult>> {
         if query.trim().is_empty() {
             return Ok(Vec::new());
         }
 
+        // Step 1: Parse filters from query
+        let filters = parse_search_query(query);
+        let has_filters = !filters.extensions.is_empty() || !filters.types.is_empty() || !filters.record_types.is_empty();
+        
+        // If no query text and no filters, return empty
+        if filters.query.is_empty() && !has_filters {
+            return Ok(Vec::new());
+        }
+        
         let index = self.get_index()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
         
-        let query_lower = query.to_lowercase();
-        let query_parts: Vec<&str> = query_lower.split_whitespace().collect();
+        let search_query = if filters.query.is_empty() {
+            None // Just filtering, will match all
+        } else {
+            Some(filters.query.to_lowercase())
+        };
 
-        let mut results = Vec::new();
+        // Step 2: Collect ALL matching documents with scores (no filtering yet)
+        let mut all_results: Vec<(SearchResult, String)> = Vec::new(); // (result, extension)
 
-        // Iterate through all documents and do substring/fuzzy matching
         for segment_reader in searcher.segment_readers() {
             let store_reader = segment_reader.get_store_reader(1)?;
             for doc_id in 0..segment_reader.num_docs() {
@@ -501,6 +524,7 @@ impl TantivyEngine {
                     let mut path_result = String::new();
                     let mut file_name = String::new();
                     let mut record_type = "file".to_string();
+                    let mut extension = String::new();
 
                     for field_value in doc.field_values() {
                         if field_value.field() == self.path_field {
@@ -515,6 +539,10 @@ impl TantivyEngine {
                              if let Some(text) = field_value.value().as_str() {
                                 record_type = text.to_string();
                             }
+                        } else if field_value.field() == self.extension_field {
+                            if let Some(text) = field_value.value().as_str() {
+                                extension = text.to_string();
+                            }
                         }
                     }
 
@@ -524,24 +552,79 @@ impl TantivyEngine {
 
                     let file_name_lower = file_name.to_lowercase();
                     
-                    // Calculate match score
-                    if let Some(score) = Self::calculate_launcher_score(&query_parts, &file_name_lower) {
-                        results.push(SearchResult {
-                            path: path_result,
-                            file_name,
-                            score,
-                            record_type,
-                        });
-                    }
+                    // Calculate score based on text match
+                    let score = if let Some(ref sq) = search_query {
+                        let query_parts: Vec<&str> = sq.split_whitespace().collect();
+                        match Self::calculate_launcher_score(&query_parts, &file_name_lower) {
+                            Some(s) => s,
+                            None => continue, // No text match, skip
+                        }
+                    } else {
+                        // No search query, just filtering - use base score with extension bonus
+                        100.0
+                    };
+
+                    // Get extension from filename if not stored
+                    let file_ext = if extension.is_empty() && record_type == "file" {
+                        std::path::Path::new(&file_name)
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .unwrap_or("")
+                            .to_string()
+                    } else {
+                        extension
+                    };
+
+                    all_results.push((SearchResult {
+                        path: path_result,
+                        file_name,
+                        score,
+                        record_type,
+                    }, file_ext));
                 }
             }
         }
 
-        // Sort by score (higher is better) and limit
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-        results.truncate(limit);
+        // Step 3: Sort by score FIRST (ranking is independent of filtering)
+        all_results.sort_by(|a, b| b.0.score.partial_cmp(&a.0.score).unwrap_or(std::cmp::Ordering::Equal));
 
-        Ok(results)
+        // Step 4: Apply filters as post-processing (filter the sorted results)
+        let filtered_results: Vec<SearchResult> = all_results
+            .into_iter()
+            .filter(|(result, file_ext)| {
+                // Filter by record type (in:files, in:bookmarks, in:history)
+                if !matches_record_type_filter(&result.record_type, &filters) {
+                    return false;
+                }
+                
+                // Filter by extension/type
+                let has_extension_filter = !filters.extensions.is_empty() || !filters.types.is_empty();
+                if has_extension_filter {
+                    if result.record_type == "file" {
+                        // For files, check extension
+                        if !matches_extension_filter(file_ext, &filters) {
+                            return false;
+                        }
+                    } else {
+                        // Non-file records (URLs) don't have extensions, exclude them
+                        return false;
+                    }
+                }
+                
+                true
+            })
+            .map(|(result, _)| result)
+            .collect::<Vec<_>>();
+        
+        // Step 5: Deduplicate by path (in case of duplicate entries in index)
+        let mut seen_paths = std::collections::HashSet::new();
+        let deduplicated_results: Vec<SearchResult> = filtered_results
+            .into_iter()
+            .filter(|r| seen_paths.insert(r.path.clone()))
+            .take(limit)
+            .collect();
+
+        Ok(deduplicated_results)
     }
 
     /// Calculates a launcher-style match score
@@ -817,6 +900,123 @@ pub struct IndexStats {
     pub file_count: Option<u64>,
     pub bookmark_count: Option<u64>,
     pub history_count: Option<u64>,
+}
+
+/// Search filters extracted from query
+#[derive(Debug, Clone, Default)]
+pub struct SearchFilters {
+    /// Clean query without filter operators
+    pub query: String,
+    /// Specific extensions to match (from ext:pdf,docx)
+    pub extensions: Vec<String>,
+    /// Type categories to match (from type:doc)
+    pub types: Vec<String>,
+    /// Record types to filter (file, history, bookmark)
+    pub record_types: Vec<String>,
+}
+
+/// Type categories for type: filter
+pub fn get_type_extensions(type_name: &str) -> Vec<&'static str> {
+    match type_name.to_lowercase().as_str() {
+        "doc" | "document" | "documents" => vec!["pdf", "doc", "docx", "txt", "md", "rtf", "odt", "epub", "mobi"],
+        "app" | "application" | "applications" | "exe" => vec!["exe", "lnk", "app", "bat", "cmd", "msi", "dmg"],
+        "image" | "images" | "img" | "pic" => vec!["jpg", "jpeg", "png", "gif", "bmp", "svg", "webp", "ico", "tiff"],
+        "video" | "videos" | "vid" => vec!["mp4", "mkv", "avi", "mov", "wmv", "webm", "flv"],
+        "audio" | "music" | "sound" => vec!["mp3", "wav", "flac", "ogg", "aac", "m4a", "wma"],
+        "code" | "source" | "src" => vec!["rs", "py", "js", "ts", "tsx", "jsx", "java", "c", "cpp", "h", "go", "rb", "php", "vue", "swift", "kt"],
+        "archive" | "zip" | "compressed" => vec!["zip", "rar", "7z", "tar", "gz", "bz2"],
+        "spreadsheet" | "sheet" | "excel" => vec!["xls", "xlsx", "csv", "ods"],
+        "presentation" | "slides" | "ppt" => vec!["ppt", "pptx", "odp"],
+        "data" | "config" => vec!["json", "xml", "yaml", "yml", "toml", "ini", "conf"],
+        _ => vec![],
+    }
+}
+
+/// Parses a search query to extract filters
+/// 
+/// Supported syntax:
+/// - `ext:pdf` or `ext:pdf,docx` - filter by specific extensions
+/// - `type:doc` - filter by type category (doc, app, image, video, audio, code, archive)
+/// - `in:files` or `in:bookmarks` or `in:history` - filter by record type
+/// 
+/// Example: "report ext:pdf type:doc" -> query="report", extensions=["pdf"], types=["doc"]
+pub fn parse_search_query(input: &str) -> SearchFilters {
+    let mut filters = SearchFilters::default();
+    let mut query_parts = Vec::new();
+    
+    for part in input.split_whitespace() {
+        if let Some(ext_value) = part.strip_prefix("ext:").or_else(|| part.strip_prefix(".")) {
+            // Handle ext:pdf,docx or .pdf
+            for ext in ext_value.split(',') {
+                let ext_clean = ext.trim().trim_start_matches('.').to_lowercase();
+                if !ext_clean.is_empty() {
+                    filters.extensions.push(ext_clean);
+                }
+            }
+        } else if let Some(type_value) = part.strip_prefix("type:") {
+            // Handle type:doc,image
+            for t in type_value.split(',') {
+                let t_clean = t.trim().to_lowercase();
+                if !t_clean.is_empty() {
+                    filters.types.push(t_clean);
+                }
+            }
+        } else if let Some(in_value) = part.strip_prefix("in:") {
+            // Handle in:files, in:bookmarks, in:history
+            for r in in_value.split(',') {
+                let r_clean = r.trim().to_lowercase();
+                match r_clean.as_str() {
+                    "file" | "files" => filters.record_types.push("file".to_string()),
+                    "bookmark" | "bookmarks" => filters.record_types.push("Bookmark".to_string()),
+                    "history" => filters.record_types.push("History".to_string()),
+                    "web" | "browser" => {
+                        filters.record_types.push("Bookmark".to_string());
+                        filters.record_types.push("History".to_string());
+                    },
+                    _ => {}
+                }
+            }
+        } else {
+            // Regular query term
+            query_parts.push(part);
+        }
+    }
+    
+    filters.query = query_parts.join(" ");
+    filters
+}
+
+/// Checks if a file extension matches the filters
+pub fn matches_extension_filter(file_ext: &str, filters: &SearchFilters) -> bool {
+    let ext_lower = file_ext.to_lowercase();
+    
+    // If no filters, match everything
+    if filters.extensions.is_empty() && filters.types.is_empty() {
+        return true;
+    }
+    
+    // Check direct extension match
+    if filters.extensions.iter().any(|e| e == &ext_lower) {
+        return true;
+    }
+    
+    // Check type category match
+    for type_name in &filters.types {
+        let type_exts = get_type_extensions(type_name);
+        if type_exts.iter().any(|e| *e == ext_lower) {
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// Checks if a record type matches the filters
+pub fn matches_record_type_filter(record_type: &str, filters: &SearchFilters) -> bool {
+    if filters.record_types.is_empty() {
+        return true;
+    }
+    filters.record_types.iter().any(|r| r == record_type)
 }
 
 /// Lists of supported file extensions by category

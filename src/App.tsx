@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import SearchBar from './components/SearchBar';
 import ResultsList from './components/ResultsList';
 import Settings from './components/Settings';
+import Help from './components/Help';
 
 interface SearchResult {
   path: string;
@@ -11,7 +12,7 @@ interface SearchResult {
   record_type?: string;
 }
 
-type TabType = 'search' | 'settings';
+type TabType = 'search' | 'settings' | 'help';
 
 function App() {
   const [query, setQuery] = useState('');
@@ -109,6 +110,12 @@ function App() {
           >
             Settings
           </button>
+          <button
+            className={`tab ${activeTab === 'help' ? 'active' : ''}`}
+            onClick={() => setActiveTab('help')}
+          >
+            Help
+          </button>
         </div>
 
         {activeTab === 'search' && (
@@ -128,6 +135,7 @@ function App() {
         )}
 
         {activeTab === 'settings' && <Settings />}
+        {activeTab === 'help' && <Help />}
       </div>
     </div>
   );

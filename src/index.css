@@ -198,3 +198,154 @@ body {
   border-radius: 6px;
   font-family: monospace;
 }
+
+/* Help Panel Styles */
+.help-panel {
+  padding: 20px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.help-title {
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
+.help-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.help-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.help-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.help-description {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.help-description code {
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--accent);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.help-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-example {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-tertiary);
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.help-example code {
+  background: rgba(233, 69, 96, 0.2);
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.help-example span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.help-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
+}
+
+.help-type-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.help-type-row code {
+  background: rgba(233, 69, 96, 0.2);
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  white-space: nowrap;
+  min-width: 90px;
+}
+
+.help-type-row span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.help-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.help-tip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, var(--bg-tertiary), rgba(233, 69, 96, 0.1));
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+}
+
+.tip-icon {
+  font-size: 16px;
+}
+
+.help-tip span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.help-tip code {
+  background: var(--bg-primary);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+}
+
+.help-tip strong {
+  color: var(--text-primary);
+}
+
